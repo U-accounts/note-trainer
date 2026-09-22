@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Тренажёр нот</title>
+<style>
+  @font-face {
+    font-family: 'Bravura';
+    src: url('https://cdn.jsdelivr.net/gh/steinbergmedia/bravura@master/redist/woff/Bravura.woff2') format('woff2'),
+         url('https://cdn.jsdelivr.net/gh/steinbergmedia/bravura@master/redist/woff/Bravura.woff') format('woff');
+    font-display: swap;
+  }
+  :root {
+    --bg: #f6f3ec;
+    --card: #ffffff;
+    --ink: #1f1d1a;
+    --muted: #6d675e;
+    --line: #2b2925;
+    --accent: #2f6fdb;
+    --ok: #2e9e5b;
+    --bad: #d64545;
+    --btn: #f1ede4;
+    --btn-border: #d9d3c6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #181613; --card: #24211d; --ink: #f1ede4; --muted: #a49d91;
+      --line: #f1ede4; --btn: #2f2b26; --btn-border: #45403a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center; padding: 16px;
+  }
+  .app { width: 100%; max-width: 640px; }
+  h1 { font-size: 22px; margin: 4px 0 12px; text-align: center; }
+  .card {
+    background: var(--card); border-radius: 14px; padding: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08); margin-bottom: 12px;
+  }
+  .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .modes button {
+    font: inherit; font-size: 14px; font-weight: 600; padding: 10px 6px;
+    border-radius: 10px; border: 2px solid var(--btn-border); background: var(--btn); color: var(--ink);
+    cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .modes button .glyph { font-family: 'Bravura', 'Noto Music', 'Apple Symbols', serif; font-size: 26px; line-height: 1.2; }
+  .modes button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+  @media (max-width: 520px) { .modes { grid-template-columns: repeat(2, 1fr); } .modes button { font-size: 13px; } }
+  .settings { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 14px; color: var(--muted); }
+  .settings label { display: flex; align-items: center; gap: 6px; }
+  select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--btn-border); background: var(--btn); color: var(--ink); }
+  svg { width: 100%; height: auto; display: block; }
+  .staff-line { stroke: var(--line); stroke-width: 1.2; }
+  .clef { fill: var(--line); font-family: 'Bravura', 'Noto Music', 'Apple Symbols', serif; font-size: 48px; }
+  .note { fill: var(--ink); }
+  .note.ok { fill: var(--ok); }
+  .note.bad { fill: var(--bad); }
+  .stem { stroke: var(--ink); stroke-width: 1.6; }
+  .stats { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); padding: 0 4px 8px; }
+  .stats b { color: var(--ink); }
+  .feedback { min-height: 26px; text-align: center; font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+  .feedback.ok { color: var(--ok); }
+  .feedback.bad { color: var(--bad); }
+  .buttons { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .buttons button {
+    font: inherit; font-size: 15px; font-weight: 600; padding: 14px 2px;
+    border-radius: 10px; border: 1px solid var(--btn-border); background: var(--btn); color: var(--ink);
+    cursor: pointer; transition: transform .05s, background .15s;
+  }
+  .buttons button small { display: block; font-weight: 400; font-size: 11px; color: var(--muted); }
+  .buttons button:active { transform: scale(.96); }
+  .buttons button.ok { background: var(--ok); color: #fff; border-color: var(--ok); }
+  .buttons button.bad { background: var(--bad); color: #fff; border-color: var(--bad); }
+  .hint { font-size: 12px; color: var(--muted); text-align: center; margin-top: 10px; }
+  @media (max-width: 420px) {
+    .buttons { grid-template-columns: repeat(4, 1fr); }
+    .buttons button { padding: 12px 2px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🎵 Тренажёр нот</h1>
+
+  <div class="card modes" id="clefMode" role="radiogroup" aria-label="Какие ноты учить">
+    <button type="button" data-mode="treble"><span class="glyph">𝄞</span>Скрипичный ключ</button>
+    <button type="button" data-mode="bass"><span class="glyph">𝄢</span>Басовый ключ</button>
+    <button type="button" data-mode="both"><span class="glyph">𝄞𝄢</span>Оба по очереди</button>
+    <button type="button" data-mode="sync"><span class="glyph">𝄞=𝄢</span>Оба сразу</button>
+  </div>
+
+  <div class="card settings">
+    <label>Названия:
+      <select id="nameMode">
+        <option value="both">До + C</option>
+        <option value="solfege">До Ре Ми</option>
+        <option value="letters">C D E</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="sound" checked> звук</label>
+    <label><input type="checkbox" id="ledger" checked> добавочные линейки</label>
+  </div>
+
+  <div class="card">
+    <svg id="staff" viewBox="0 40 400 250" aria-label="Нотный стан"></svg>
+  </div>
+
+  <div class="card">
+    <div class="stats">
+      <span>Верно: <b id="correct">0</b> / <b id="total">0</b></span>
+      <span>Серия: <b id="streak">0</b></span>
+      <span>Рекорд: <b id="best">0</b></span>
+    </div>
+    <div class="feedback" id="feedback"></div>
+    <div class="buttons" id="buttons"></div>
+    <div class="hint">Клавиатура: 1–7 или C D E F G A B</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const NOTES = [
+    { letter: 'C', solfege: 'До' },
+    { letter: 'D', solfege: 'Ре' },
+    { letter: 'E', solfege: 'Ми' },
+    { letter: 'F', solfege: 'Фа' },
+    { letter: 'G', solfege: 'Соль' },
+    { letter: 'A', solfege: 'Ля' },
+    { letter: 'B', solfege: 'Си' },
+  ];
+
+  // Геометрия стана: расстояние между линейками 12px, шаг ноты (линейка/пробел) 6px.
+  const SPACE = 12, STEP = 6, X_NOTE = 250, X_CLEF = 40;
+  const TREBLE_TOP = 80, BASS_TOP = 200;
+  // Диатонический шаг относительно до первой октавы (C4 = 0).
+  // Скрипичный: нижняя линейка ми (шаг 2); басовый: верхняя линейка ля малой (шаг -2).
+  const CLEFS = {
+    treble: { top: TREBLE_TOP, y: s => TREBLE_TOP + 4 * SPACE - (s - 2) * STEP, lines: [2, 4, 6, 8, 10], range: [-2, 14], glyph: '\u{1D11E}', glyphY: TREBLE_TOP + 3 * SPACE },
+    bass:   { top: BASS_TOP,   y: s => BASS_TOP - (s + 2) * STEP,               lines: [-10, -8, -6, -4, -2], range: [-14, 2], glyph: '\u{1D122}', glyphY: BASS_TOP + SPACE },
+  };
+
+  const svg = document.getElementById('staff');
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs = {}) => {
+    const n = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  };
+
+  const VIEWBOX = { treble: '0 40 400 130', bass: '0 160 400 130', both: '0 40 400 250', sync: '0 40 400 250' };
+  function drawStaff(mode) {
+    svg.innerHTML = '';
+    svg.setAttribute('viewBox', VIEWBOX[mode]);
+    const names = mode === 'treble' || mode === 'bass' ? [mode] : ['treble', 'bass'];
+    for (const name of names) {
+      const clef = CLEFS[name];
+      for (let i = 0; i < 5; i++) {
+        svg.appendChild(el('line', { x1: 20, x2: 380, y1: clef.top + i * SPACE, y2: clef.top + i * SPACE, class: 'staff-line' }));
+      }
+      const t = el('text', { x: X_CLEF, y: clef.glyphY, class: 'clef' });
+      t.textContent = clef.glyph;
+      svg.appendChild(t);
+    }
+    // Акколада (вертикальная линия слева) — только для двух станов
+    if (mode !== 'treble' && mode !== 'bass') svg.appendChild(el('line', { x1: 20, x2: 20, y1: TREBLE_TOP, y2: BASS_TOP + 4 * SPACE, class: 'staff-line' }));
+  }
+
+  let noteGroup = null;
+  function drawNotes(notes) {
+    if (noteGroup) noteGroup.remove();
+    noteGroup = el('g');
+    for (const n of notes) drawOne(CLEFS[n.clef], n.step);
+    svg.appendChild(noteGroup);
+  }
+  function drawOne(clef, step) {
+    const y = clef.y(step);
+
+    // Добавочные линейки
+    if (document.getElementById('ledger').checked) {
+      const [lo, hi] = [clef.lines[0], clef.lines[4]];
+      for (let s = lo - 2; s >= step; s -= 2) noteGroup.appendChild(el('line', { x1: X_NOTE - 13, x2: X_NOTE + 13, y1: clef.y(s), y2: clef.y(s), class: 'staff-line' }));
+      for (let s = hi + 2; s <= step; s += 2) noteGroup.appendChild(el('line', { x1: X_NOTE - 13, x2: X_NOTE + 13, y1: clef.y(s), y2: clef.y(s), class: 'staff-line' }));
+    }
+
+    const head = el('ellipse', { cx: X_NOTE, cy: y, rx: 7.5, ry: 5.2, transform: `rotate(-20 ${X_NOTE} ${y})`, class: 'note' });
+    noteGroup.appendChild(head);
+    // Штиль: вверх, если нота ниже средней линейки, иначе вниз
+    const middle = clef.lines[2];
+    const up = step < middle;
+    noteGroup.appendChild(el('line', {
+      x1: up ? X_NOTE + 6.5 : X_NOTE - 6.5, x2: up ? X_NOTE + 6.5 : X_NOTE - 6.5,
+      y1: y, y2: up ? y - 38 : y + 38, class: 'stem',
+    }));
+  }
+
+  // Звук
+  let audioCtx = null;
+  function playStep(step) {
+    if (!document.getElementById('sound').checked) return;
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const semis = [0, 2, 4, 5, 7, 9, 11];
+      const octave = Math.floor(step / 7), idx = ((step % 7) + 7) % 7;
+      const midi = 60 + octave * 12 + semis[idx];
+      const freq = 440 * Math.pow(2, (midi - 69) / 12);
+      const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.type = 'triangle'; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.7);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.7);
+    } catch (e) { /* без звука */ }
+  }
+
+  // Состояние игры
+  const state = { mode: 'both', notes: [], step: 0, correct: 0, total: 0, streak: 0, best: 0, locked: false };
+  try {
+    state.best = Number(localStorage.getItem('noteTrainerBest')) || 0;
+    if (VIEWBOX[localStorage.getItem('noteTrainerMode')]) state.mode = localStorage.getItem('noteTrainerMode');
+  } catch (e) {}
+
+  function setMode(mode) {
+    state.mode = mode;
+    try { localStorage.setItem('noteTrainerMode', mode); } catch (e) {}
+    for (const b of $('clefMode').children) b.classList.toggle('active', b.dataset.mode === mode);
+    drawStaff(mode);
+    nextNote();
+  }
+
+  const $ = id => document.getElementById(id);
+  function updateStats() {
+    $('correct').textContent = state.correct;
+    $('total').textContent = state.total;
+    $('streak').textContent = state.streak;
+    $('best').textContent = state.best;
+  }
+
+  // Случайная ступень в диапазоне ключа; если задан idx — только с этим названием ноты
+  function randomStep(clefName, idx) {
+    const [lo, hi] = CLEFS[clefName].range;
+    const steps = [];
+    for (let s = lo; s <= hi; s++) if (idx === undefined || ((s % 7) + 7) % 7 === idx) steps.push(s);
+    return steps[Math.floor(Math.random() * steps.length)];
+  }
+
+  function nextNote() {
+    const mode = state.mode;
+    let notes;
+    do {
+      if (mode === 'sync') {
+        // Одна и та же нота (по названию) на обоих станах, каждая в своей октаве
+        const idx = Math.floor(Math.random() * 7);
+        notes = [{ clef: 'treble', step: randomStep('treble', idx) }, { clef: 'bass', step: randomStep('bass', idx) }];
+      } else {
+        const clefName = mode === 'both' ? (Math.random() < 0.5 ? 'treble' : 'bass') : mode;
+        notes = [{ clef: clefName, step: randomStep(clefName) }];
+      }
+    } while (state.notes.length && (mode === 'sync'
+      ? ((notes[0].step % 7) + 7) % 7 === ((state.step % 7) + 7) % 7   // не повторять то же название
+      : notes[0].step === state.step));                                 // не повторять ту же ноту
+    state.notes = notes; state.step = notes[0].step; state.locked = false;
+    drawNotes(notes);
+    $('feedback').textContent = ''; $('feedback').className = 'feedback';
+    for (const b of $('buttons').children) b.className = '';
+  }
+
+  function nameOf(idx) {
+    const n = NOTES[idx], m = $('nameMode').value;
+    if (m === 'solfege') return n.solfege;
+    if (m === 'letters') return n.letter;
+    return `${n.solfege} (${n.letter})`;
+  }
+
+  function answer(idx) {
+    if (state.locked) return;
+    state.locked = true;
+    const correctIdx = ((state.step % 7) + 7) % 7;
+    const buttons = $('buttons').children;
+    state.total++;
+    if (idx === correctIdx) {
+      state.correct++; state.streak++;
+      if (state.streak > state.best) {
+        state.best = state.streak;
+        try { localStorage.setItem('noteTrainerBest', state.best); } catch (e) {}
+      }
+      buttons[idx].classList.add('ok');
+      for (const h of svg.querySelectorAll('.note')) h.classList.add('ok');
+      $('feedback').textContent = 'Верно!'; $('feedback').className = 'feedback ok';
+      playStep(state.step);
+      setTimeout(nextNote, 600);
+    } else {
+      state.streak = 0;
+      buttons[idx].classList.add('bad');
+      buttons[correctIdx].classList.add('ok');
+      for (const h of svg.querySelectorAll('.note')) h.classList.add('bad');
+      $('feedback').textContent = `Неверно. Это ${nameOf(correctIdx)}`; $('feedback').className = 'feedback bad';
+      playStep(state.step);
+      setTimeout(nextNote, 1500);
+    }
+    updateStats();
+  }
+
+  function buildButtons() {
+    const box = $('buttons');
+    box.innerHTML = '';
+    NOTES.forEach((n, i) => {
+      const b = document.createElement('button');
+      const m = $('nameMode').value;
+      b.innerHTML = m === 'both' ? `${n.solfege}<small>${n.letter}</small>` : (m === 'solfege' ? n.solfege : n.letter);
+      b.addEventListener('click', () => answer(i));
+      box.appendChild(b);
+    });
+  }
+
+  document.addEventListener('keydown', e => {
+    const k = e.key.toUpperCase();
+    if (k >= '1' && k <= '7') answer(Number(k) - 1);
+    const i = NOTES.findIndex(n => n.letter === k);
+    if (i >= 0) answer(i);
+  });
+  for (const b of $('clefMode').children) b.addEventListener('click', () => setMode(b.dataset.mode));
+  $('nameMode').addEventListener('change', buildButtons);
+  $('ledger').addEventListener('change', () => drawNotes(state.notes));
+
+  buildButtons();
+  updateStats();
+  setMode(state.mode);
+})();
+</script>
+</body>
+</html>
