@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Тренажёр нот</title>
+<style>
+  @font-face {
+    font-family: 'Bravura';
+    src: url('https://cdn.jsdelivr.net/gh/steinbergmedia/bravura@master/redist/woff/Bravura.woff2') format('woff2'),
+         url('https://cdn.jsdelivr.net/gh/steinbergmedia/bravura@master/redist/woff/Bravura.woff') format('woff');
+    font-display: swap;
+  }
+  :root {
+    --bg: #f6f3ec; --card: #ffffff; --ink: #1f1d1a; --muted: #6d675e;
+    --line: #2b2925; --accent: #2f6fdb; --ok: #2e9e5b; --bad: #d64545;
+    --btn: #f1ede4; --btn-border: #d9d3c6;
+    --key-white: #fbfaf6; --key-black: #26231f; --key-edge: #a8a296;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #181613; --card: #24211d; --ink: #f1ede4; --muted: #a49d91;
+      --line: #f1ede4; --btn: #2f2b26; --btn-border: #45403a;
+      --key-white: #e8e3d8; --key-black: #15130f; --key-edge: #6b655c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center; padding: 16px;
+  }
+  .app { width: 100%; max-width: 760px; }
+  h1 { font-size: 22px; margin: 4px 0 12px; text-align: center; }
+  .card { background: var(--card); border-radius: 14px; padding: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); margin-bottom: 12px; }
+  .modes { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; }
+  .modes button {
+    font: inherit; font-size: 13px; font-weight: 600; padding: 5px 10px;
+    border-radius: 999px; border: 1.5px solid var(--btn-border); background: var(--btn); color: var(--ink);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; line-height: 1.4;
+  }
+  .modes button .glyph { font-family: 'Bravura', 'Noto Music', 'Apple Symbols', serif; font-size: 17px; line-height: 1; }
+  .modes button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .settings { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 14px; color: var(--muted); }
+  .settings label { display: flex; align-items: center; gap: 6px; }
+  select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--btn-border); background: var(--btn); color: var(--ink); }
+  svg { display: block; }
+  #staff { width: 100%; height: auto; }
+  .staff-line { stroke: var(--line); stroke-width: 1.2; }
+  .clef { fill: var(--line); font-family: 'Bravura', 'Noto Music', 'Apple Symbols', serif; font-size: 48px; }
+  .accidental { fill: var(--ink); font-size: 30px; font-family: 'Noto Music', 'Apple Symbols', 'Segoe UI Symbol', serif; }
+  .note { fill: var(--ink); }
+  .note.ok, .accidental.ok { fill: var(--ok); }
+  .note.bad, .accidental.bad { fill: var(--bad); }
+  .stem { stroke: var(--ink); stroke-width: 1.6; }
+  .stats { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); padding: 0 4px 6px; }
+  .stats b { color: var(--ink); }
+  .feedback { min-height: 26px; text-align: center; font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+  .feedback.ok { color: var(--ok); }
+  .feedback.bad { color: var(--bad); }
+  .kbd-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .kbd-scroll::-webkit-scrollbar { display: none; }
+  #keyboard svg { height: auto; display: block; }
+  .minimap {
+    position: relative; height: 18px; margin-bottom: 8px; border-radius: 5px;
+    background: var(--btn); border: 1px solid var(--btn-border);
+    display: flex; cursor: pointer; touch-action: none; overflow: hidden;
+  }
+  .minimap span {
+    flex: 1; font-size: 9px; line-height: 16px; text-align: center; color: var(--muted);
+    border-right: 1px solid var(--btn-border); pointer-events: none;
+  }
+  .minimap[hidden] { display: none; }
+  .minimap span:last-child { border-right: 0; }
+  .mm-win {
+    position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 28%, transparent);
+    border: 1.5px solid var(--accent); border-radius: 5px; pointer-events: none;
+  }
+  .key-white { fill: var(--key-white); stroke: var(--key-edge); stroke-width: 1; cursor: pointer; }
+  .key-black { fill: var(--key-black); stroke: var(--key-edge); stroke-width: 1; cursor: pointer; }
+  .key-white.ok, .key-black.ok { fill: var(--ok); }
+  .key-white.bad, .key-black.bad { fill: var(--bad); }
+  .key-white.hit, .key-black.hit { fill: var(--accent); }
+  .oct-label { fill: var(--muted); font-size: 11px; text-anchor: middle; }
+  .oct-sep { stroke: var(--key-edge); stroke-width: 1; stroke-dasharray: 3 3; }
+  .buttons { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .buttons button {
+    font: inherit; font-size: 15px; font-weight: 600; padding: 14px 2px;
+    border-radius: 10px; border: 1px solid var(--btn-border); background: var(--btn); color: var(--ink);
+    cursor: pointer; transition: transform .05s, background .15s;
+  }
+  .buttons button small { display: block; font-weight: 400; font-size: 11px; color: var(--muted); }
+  .buttons button:active { transform: scale(.96); }
+  .buttons button.ok { background: var(--ok); color: #fff; border-color: var(--ok); }
+  .buttons button.bad { background: var(--bad); color: #fff; border-color: var(--bad); }
+  .signs { display: flex; justify-content: center; gap: 8px; margin-bottom: 8px; }
+  .signs button {
+    font: inherit; font-size: 20px; width: 56px; padding: 6px 0;
+    border-radius: 10px; border: 2px solid var(--btn-border); background: var(--btn); color: var(--ink); cursor: pointer;
+  }
+  .signs button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+  @media (max-width: 420px) { .buttons { grid-template-columns: repeat(4, 1fr); } }
+  .hint { font-size: 12px; color: var(--muted); text-align: center; margin-top: 8px; }
+
+  /* Телефон, положенный набок: всё ужимаем, клавиатура влезает целиком */
+  @media (orientation: landscape) and (max-height: 520px) {
+    body { padding: 4px 8px; }
+    h1 { display: none; }
+    .app { max-width: none; }
+    .card { padding: 5px 8px; margin-bottom: 4px; border-radius: 10px; }
+    .modes { padding: 4px; gap: 5px; }
+    .modes button { font-size: 12px; padding: 2px 8px; }
+    .modes button .glyph { font-size: 15px; }
+    .settings { font-size: 12px; gap: 3px 12px; }
+    #staff { max-height: 32vh; }
+    .stats { font-size: 12px; padding-bottom: 2px; }
+    .feedback { min-height: 20px; font-size: 14px; margin-bottom: 4px; }
+    .hint { display: none; }
+    .oct-label { font-size: 9px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🎵 Тренажёр нот</h1>
+
+  <div class="card modes" id="clefMode" role="radiogroup" aria-label="Какие ноты учить">
+    <button type="button" data-mode="treble"><span class="glyph">&#119070;</span>Скрипичный</button>
+    <button type="button" data-mode="bass"><span class="glyph">&#119074;</span>Басовый</button>
+    <button type="button" data-mode="both"><span class="glyph">&#119070;&#119074;</span>По очереди</button>
+    <button type="button" data-mode="sync"><span class="glyph">&#119070;=&#119074;</span>Оба сразу</button>
+  </div>
+
+  <div class="card settings">
+    <label>Отвечать:
+      <select id="answerMode">
+        <option value="keys">клавишами</option>
+        <option value="names">кнопками с названиями</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="accidentals"> диезы и бемоли</label>
+    <label>Названия:
+      <select id="nameMode">
+        <option value="both">До + C</option>
+        <option value="solfege">До Ре Ми</option>
+        <option value="letters">C D E</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="sound" checked> звук</label>
+    <label><input type="checkbox" id="ledger" checked> добавочные линейки</label>
+  </div>
+
+  <div class="card">
+    <svg id="staff" viewBox="0 40 400 250" aria-label="Нотный стан"></svg>
+  </div>
+
+  <div class="card">
+    <div class="stats">
+      <span>Верно: <b id="correct">0</b> / <b id="total">0</b></span>
+      <span>Серия: <b id="streak">0</b></span>
+      <span>Рекорд: <b id="best">0</b></span>
+    </div>
+    <div class="feedback" id="feedback"></div>
+    <div id="answerKeys">
+      <div class="minimap" id="minimap" hidden><div class="mm-win" id="mmWin"></div></div>
+      <div class="kbd-scroll" id="kbdScroll"><div id="keyboard" aria-label="Фортепианная клавиатура"></div></div>
+    </div>
+    <div id="answerNames" hidden>
+      <div class="signs" id="signs" hidden></div>
+      <div class="buttons" id="buttons"></div>
+    </div>
+    <div class="hint" id="hint">Нажмите клавишу, соответствующую ноте</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs = {}) => {
+    const n = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  };
+  const $ = id => document.getElementById(id);
+
+  /* ---------- Модель высоты звука ----------
+     step — диатоническая ступень относительно до первой октавы (C4 = 0).
+     alter — знак: -1 бемоль, 0 бекар, +1 диез.                        */
+  const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  const SOLFEGE = ['До', 'Ре', 'Ми', 'Фа', 'Соль', 'Ля', 'Си'];
+  const SEMIS = [0, 2, 4, 5, 7, 9, 11];
+  const mod7 = s => ((s % 7) + 7) % 7;
+  const toMidi = (step, alter) => 60 + Math.floor(step / 7) * 12 + SEMIS[mod7(step)] + alter;
+  const isBlack = midi => [1, 3, 6, 8, 10].includes(((midi % 12) + 12) % 12);
+
+  // Четыре основные октавы: большая, малая, первая, вторая (до большой = C2 = midi 36)
+  const OCTAVES = [
+    { name: 'Большая', midi: 36 },
+    { name: 'Малая', midi: 48 },
+    { name: 'Первая', midi: 60 },
+    { name: 'Вторая', midi: 72 },
+  ];
+  const MIDI_LO = OCTAVES[0].midi, MIDI_HI = OCTAVES[3].midi + 11;
+
+  /* ---------- Нотный стан ---------- */
+  const SPACE = 12, STEP = 6, X_NOTE = 250, X_CLEF = 40;
+  const TREBLE_TOP = 80, BASS_TOP = 200;
+  const CLEFS = {
+    // range — диапазон ступеней, целиком укладывающийся в четыре показанные октавы
+    treble: { top: TREBLE_TOP, y: s => TREBLE_TOP + 4 * SPACE - (s - 2) * STEP, lines: [2, 4, 6, 8, 10], range: [-2, 13], glyph: '\u{1D11E}', glyphY: TREBLE_TOP + 3 * SPACE },
+    bass:   { top: BASS_TOP,   y: s => BASS_TOP - (s + 2) * STEP,               lines: [-10, -8, -6, -4, -2], range: [-14, 2], glyph: '\u{1D122}', glyphY: BASS_TOP + SPACE },
+  };
+  const VIEWBOX = { treble: '0 40 400 130', bass: '0 160 400 130', both: '0 40 400 250', sync: '0 40 400 250' };
+  // В ландшафте высота ограничена, поэтому убираем поля вокруг стана — ноты остаются крупнее
+  const VIEWBOX_LAND = { treble: '12 58 376 92', bass: '12 178 376 92', both: '12 58 376 212', sync: '12 58 376 212' };
+  const staff = $('staff');
+
+  function drawStaff(mode) {
+    staff.innerHTML = '';
+    staff.setAttribute('viewBox', (mqLandscape.matches ? VIEWBOX_LAND : VIEWBOX)[mode]);
+    const names = mode === 'treble' || mode === 'bass' ? [mode] : ['treble', 'bass'];
+    for (const name of names) {
+      const clef = CLEFS[name];
+      for (let i = 0; i < 5; i++) {
+        staff.appendChild(el('line', { x1: 20, x2: 380, y1: clef.top + i * SPACE, y2: clef.top + i * SPACE, class: 'staff-line' }));
+      }
+      const t = el('text', { x: X_CLEF, y: clef.glyphY, class: 'clef' });
+      t.textContent = clef.glyph;
+      staff.appendChild(t);
+    }
+    // Акколада — только когда показаны оба стана
+    if (names.length === 2) staff.appendChild(el('line', { x1: 20, x2: 20, y1: TREBLE_TOP, y2: BASS_TOP + 4 * SPACE, class: 'staff-line' }));
+  }
+
+  let noteGroup = null;
+  function drawNotes(notes) {
+    if (noteGroup) noteGroup.remove();
+    noteGroup = el('g');
+    for (const n of notes) drawOne(CLEFS[n.clef], n.step, n.alter);
+    staff.appendChild(noteGroup);
+  }
+
+  function drawOne(clef, step, alter) {
+    const y = clef.y(step);
+
+    if ($('ledger').checked) {
+      const lo = clef.lines[0], hi = clef.lines[4];
+      for (let s = lo - 2; s >= step; s -= 2) noteGroup.appendChild(el('line', { x1: X_NOTE - 13, x2: X_NOTE + 13, y1: clef.y(s), y2: clef.y(s), class: 'staff-line' }));
+      for (let s = hi + 2; s <= step; s += 2) noteGroup.appendChild(el('line', { x1: X_NOTE - 13, x2: X_NOTE + 13, y1: clef.y(s), y2: clef.y(s), class: 'staff-line' }));
+    }
+
+    if (alter !== 0) {
+      const a = el('text', { x: X_NOTE - 26, y: y + 10, class: 'accidental' });
+      a.textContent = alter > 0 ? '♯' : '♭';
+      noteGroup.appendChild(a);
+    }
+
+    noteGroup.appendChild(el('ellipse', { cx: X_NOTE, cy: y, rx: 7.5, ry: 5.2, transform: `rotate(-20 ${X_NOTE} ${y})`, class: 'note' }));
+    const up = step < clef.lines[2];
+    noteGroup.appendChild(el('line', {
+      x1: up ? X_NOTE + 6.5 : X_NOTE - 6.5, x2: up ? X_NOTE + 6.5 : X_NOTE - 6.5,
+      y1: y, y2: up ? y - 38 : y + 38, class: 'stem',
+    }));
+  }
+
+  /* ---------- Клавиатура: четыре октавы ---------- */
+  const KW = 20, BW = 12, PAD = 4;
+  const keyEls = new Map();   // midi -> <rect>
+  const kbd = $('keyboard');
+
+  // На телефоне клавиши делаем крупными, а клавиатуру — прокручиваемой по горизонтали
+  const mqNarrow = window.matchMedia('(max-width: 620px)');
+  // Телефон набок: клавиатура целиком по ширине экрана, поэтому клавиши делаем ниже
+  const mqLandscape = window.matchMedia('(orientation: landscape) and (max-height: 520px)');
+  const layout = () => mqNarrow.matches ? { KW: 40, KH: 130, BW: 24, BH: 82, PAD: 4, LB: 24 }
+    : mqLandscape.matches ? { KW: 20, KH: 50, BW: 12, BH: 32, PAD: 4, LB: 16 }
+    : { KW: 20, KH: 112, BW: 12, BH: 70, PAD: 4, LB: 24 };
+
+  function drawKeyboard() {
+    const { KW, KH, BW, BH, PAD, LB } = layout();
+    kbd.innerHTML = '';
+    keyEls.clear();
+
+    const svg = el('svg', { xmlns: SVG_NS });
+    const whites = [];
+    for (let m = MIDI_LO; m <= MIDI_HI; m++) if (!isBlack(m)) whites.push(m);
+    const width = whites.length * KW + PAD * 2;
+    svg.setAttribute('viewBox', `0 0 ${width} ${KH + LB}`);
+    // На узком экране задаём ширину в пикселях (один к одному с viewBox), чтобы клавиши не сжимались
+    svg.style.width = mqNarrow.matches ? width + 'px' : '100%';
+
+    const xOf = new Map();
+    whites.forEach((m, i) => xOf.set(m, PAD + i * KW));
+
+    for (const m of whites) {
+      const r = el('rect', { x: xOf.get(m), y: 0, width: KW, height: KH, rx: 3, class: 'key-white' });
+      r.addEventListener('click', () => press(m));
+      svg.appendChild(r);
+      keyEls.set(m, r);
+    }
+    for (let m = MIDI_LO; m <= MIDI_HI; m++) {
+      if (!isBlack(m)) continue;
+      const r = el('rect', { x: xOf.get(m - 1) + KW - BW / 2, y: 0, width: BW, height: BH, rx: 2, class: 'key-black' });
+      r.addEventListener('click', () => press(m));
+      svg.appendChild(r);
+      keyEls.set(m, r);
+    }
+    for (const o of OCTAVES) {
+      const x0 = xOf.get(o.midi);
+      if (o.midi !== MIDI_LO) svg.appendChild(el('line', { x1: x0, x2: x0, y1: KH + 2, y2: KH + LB - 8, class: 'oct-sep' }));
+      const t = el('text', { x: x0 + 3.5 * KW, y: KH + LB - 8, class: 'oct-label' });
+      t.textContent = o.name + ' октава';
+      svg.appendChild(t);
+    }
+
+    kbd.appendChild(svg);
+    for (const m of state.hit) if (keyEls.has(m)) keyEls.get(m).classList.add('hit');
+    updateMinimap();
+  }
+
+  /* ---------- Миникарта: какая часть клавиатуры сейчас на экране ---------- */
+  const scroller = $('kbdScroll'), minimap = $('minimap'), mmWin = $('mmWin');
+  for (const o of OCTAVES) {
+    const span = document.createElement('span');
+    span.textContent = o.name;
+    minimap.insertBefore(span, mmWin);
+  }
+
+  function updateMinimap() {
+    const visible = scroller.clientWidth, total = scroller.scrollWidth;
+    const scrollable = total > visible + 2;
+    minimap.hidden = !scrollable;
+    if (!scrollable) return;
+    mmWin.style.width = (visible / total * 100) + '%';
+    mmWin.style.left = (scroller.scrollLeft / total * 100) + '%';
+  }
+
+  // Клавиатуру можно прокручивать и перетаскиванием окошка на миникарте
+  const jumpTo = clientX => {
+    const b = minimap.getBoundingClientRect();
+    const f = Math.min(Math.max((clientX - b.left) / b.width, 0), 1);
+    scroller.scrollLeft = f * scroller.scrollWidth - scroller.clientWidth / 2;
+  };
+  let dragging = false;
+  minimap.addEventListener('pointerdown', e => { dragging = true; minimap.setPointerCapture(e.pointerId); jumpTo(e.clientX); });
+  minimap.addEventListener('pointermove', e => { if (dragging) jumpTo(e.clientX); });
+  minimap.addEventListener('pointerup', () => { dragging = false; });
+  minimap.addEventListener('pointercancel', () => { dragging = false; });
+  scroller.addEventListener('scroll', updateMinimap);
+  window.addEventListener('resize', updateMinimap);
+
+  // Показать клавишу, если она осталась за краем экрана (после неверного ответа)
+  function revealKey(midi) {
+    const r = keyEls.get(midi);
+    if (!r) return;
+    const rb = r.getBoundingClientRect(), cb = scroller.getBoundingClientRect();
+    if (rb.left < cb.left || rb.right > cb.right) centerOn(midi, true);
+  }
+
+  function centerOn(midi, smooth) {
+    const r = keyEls.get(midi);
+    if (!r) return;
+    const rb = r.getBoundingClientRect(), cb = scroller.getBoundingClientRect();
+    const left = scroller.scrollLeft + rb.left - cb.left - cb.width / 2 + rb.width / 2;
+    scroller.scrollTo({ left, behavior: smooth ? 'smooth' : 'auto' });
+  }
+
+  // Середина рабочего диапазона выбранного ключа — чтобы не начинать с края клавиатуры
+  const homeKey = mode => mode === 'bass' ? 48 : mode === 'treble' ? 72 : 60;
+
+  const clearKeys = () => { for (const r of keyEls.values()) r.classList.remove('ok', 'bad', 'hit'); };
+
+  /* ---------- Звук ---------- */
+  let audioCtx = null;
+  function playMidi(midi) {
+    if (!$('sound').checked) return;
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.7);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.7);
+    } catch (e) { /* без звука */ }
+  }
+
+  /* ---------- Названия ---------- */
+  const SIGN = { '-1': '♭', '0': '', '1': '♯' };
+  function noteName(step, alter) {
+    const i = mod7(step), m = $('nameMode').value, s = SIGN[String(alter)];
+    const sol = SOLFEGE[i] + s, let_ = LETTERS[i] + s;
+    if (m === 'solfege') return sol;
+    if (m === 'letters') return let_;
+    return `${sol} (${let_})`;
+  }
+  const octaveName = midi => (OCTAVES.find(o => midi >= o.midi && midi <= o.midi + 11) || {}).name || '';
+
+  /* ---------- Игра ---------- */
+  const state = { mode: 'both', answer: 'keys', sign: 0, notes: [], targets: [], hit: new Set(), correct: 0, total: 0, streak: 0, best: 0, locked: false };
+  try {
+    state.best = Number(localStorage.getItem('noteTrainerBest')) || 0;
+    if (VIEWBOX[localStorage.getItem('noteTrainerMode')]) state.mode = localStorage.getItem('noteTrainerMode');
+    $('accidentals').checked = localStorage.getItem('noteTrainerAcc') === '1';
+    const a = localStorage.getItem('noteTrainerAnswer');
+    if (a === 'keys' || a === 'names') state.answer = a;
+  } catch (e) {}
+
+  /* ---------- Ответ кнопками с названиями ---------- */
+  function buildButtons() {
+    const box = $('buttons');
+    box.innerHTML = '';
+    const m = $('nameMode').value;
+    LETTERS.forEach((letter, i) => {
+      const b = document.createElement('button');
+      b.innerHTML = m === 'letters' ? letter : (m === 'solfege' ? SOLFEGE[i] : `${SOLFEGE[i]}<small>${letter}</small>`);
+      b.addEventListener('click', () => answerByName(i));
+      box.appendChild(b);
+    });
+
+    // Ряд знаков нужен только тогда, когда включены диезы и бемоли
+    const signs = $('signs');
+    signs.hidden = !$('accidentals').checked;
+    signs.innerHTML = '';
+    [[-1, '\u266D'], [0, '\u266E'], [1, '\u266F']].forEach(([alter, glyph]) => {
+      const b = document.createElement('button');
+      b.textContent = glyph;
+      b.title = alter < 0 ? 'бемоль' : alter > 0 ? 'диез' : 'без знака';
+      b.classList.toggle('active', alter === state.sign);
+      b.addEventListener('click', () => {
+        state.sign = alter;
+        for (const x of signs.children) x.classList.remove('active');
+        b.classList.add('active');
+      });
+      signs.appendChild(b);
+    });
+  }
+
+  function setAnswerMode(mode) {
+    state.answer = mode;
+    try { localStorage.setItem('noteTrainerAnswer', mode); } catch (e) {}
+    $('answerMode').value = mode;
+    $('answerKeys').hidden = mode !== 'keys';
+    $('answerNames').hidden = mode !== 'names';
+    buildButtons();
+    setHint();
+  }
+
+  function setHint() {
+    $('hint').textContent = state.answer === 'names'
+      ? ($('accidentals').checked ? 'Выберите знак, затем название ноты — или клавиши 1–7 / C D E F G A B' : 'Нажмите кнопку с названием ноты — или клавиши 1–7 / C D E F G A B')
+      : (state.targets.length > 1 ? 'Нажмите обе клавиши — в каждой октаве' : 'Нажмите клавишу, соответствующую ноте');
+  }
+
+  function updateStats() {
+    $('correct').textContent = state.correct;
+    $('total').textContent = state.total;
+    $('streak').textContent = state.streak;
+    $('best').textContent = state.best;
+  }
+
+  // Случайная нота в диапазоне ключа; idx — нужная ступень (для режима «оба сразу»)
+  function randomNote(clefName, idx) {
+    const [lo, hi] = CLEFS[clefName].range;
+    const variants = [];
+    for (let s = lo; s <= hi; s++) {
+      if (idx !== undefined && mod7(s) !== idx) continue;
+      variants.push({ step: s, alter: 0 });
+      if ($('accidentals').checked) {
+        // Знак берём только тогда, когда он даёт чёрную клавишу в показанном диапазоне
+        for (const alter of [1, -1]) {
+          const midi = toMidi(s, alter);
+          if (isBlack(midi) && midi >= MIDI_LO && midi <= MIDI_HI) variants.push({ step: s, alter });
+        }
+      }
+    }
+    const v = variants[Math.floor(Math.random() * variants.length)];
+    return { clef: clefName, step: v.step, alter: v.alter, midi: toMidi(v.step, v.alter) };
+  }
+
+  function nextNote() {
+    const mode = state.mode;
+    const prev = state.targets.join(',');
+    let notes;
+    do {
+      if (mode === 'sync') {
+        // Одно и то же название ноты на обоих станах — в разных октавах
+        const idx = Math.floor(Math.random() * 7);
+        const t = randomNote('treble', idx);
+        let b;
+        // Диапазоны ключей пересекаются — следим, чтобы это были разные октавы
+        for (let i = 0; i < 20; i++) {
+          b = randomNote('bass', idx);
+          b.alter = t.alter; b.midi = toMidi(b.step, b.alter);   // знак общий для обеих нот
+          if (b.midi !== t.midi) break;
+        }
+        notes = [t, b];
+      } else {
+        const clefName = mode === 'both' ? (Math.random() < 0.5 ? 'treble' : 'bass') : mode;
+        notes = [randomNote(clefName)];
+      }
+    } while (notes.map(n => n.midi).join(',') === prev);
+
+    state.notes = notes;
+    state.targets = [...new Set(notes.map(n => n.midi))];   // одна высота — одна клавиша
+    state.hit = new Set();
+    state.locked = false;
+    drawNotes(notes);
+    clearKeys();
+    for (const b of $('buttons').children) b.className = '';
+    state.sign = 0;                                     // знак не переносим на следующую ноту
+    for (const x of $('signs').children) x.classList.toggle('active', x.textContent === '\u266E');
+    $('feedback').textContent = '';
+    $('feedback').className = 'feedback';
+    setHint();
+  }
+
+  function finish(ok) {
+    state.locked = true;
+    state.total++;
+    const cls = ok ? 'ok' : 'bad';
+    if (state.answer === 'keys') {                      // правильные клавиши подсвечиваем всегда
+      for (const n of state.notes) {
+        keyEls.get(n.midi).classList.remove('hit');
+        keyEls.get(n.midi).classList.add('ok');
+      }
+      if (!ok) revealKey(state.notes[0].midi);
+    }
+    for (const e of staff.querySelectorAll('.note, .accidental')) e.classList.add(cls);
+    if (ok) {
+      state.correct++; state.streak++;
+      if (state.streak > state.best) {
+        state.best = state.streak;
+        try { localStorage.setItem('noteTrainerBest', state.best); } catch (e) {}
+      }
+      $('feedback').textContent = 'Верно!';
+      $('feedback').className = 'feedback ok';
+    } else {
+      state.streak = 0;
+      const n = state.notes[0];
+      const where = [...new Set(state.notes.map(x => octaveName(x.midi).toLowerCase() + ' октава'))].join(' и ');
+      $('feedback').textContent = state.answer === 'names'
+        ? `Неверно. Это ${noteName(n.step, n.alter)}`
+        : `Это ${noteName(n.step, n.alter)}, ${where}`;
+      $('feedback').className = 'feedback bad';
+    }
+    updateStats();
+    setTimeout(nextNote, ok ? 700 : 1900);
+  }
+
+  function press(midi) {
+    if (state.locked) return;
+    playMidi(midi);
+    if (state.targets.includes(midi) && !state.hit.has(midi)) {
+      state.hit.add(midi);
+      if (state.hit.size === state.targets.length) finish(true);
+      else {
+        keyEls.get(midi).classList.add('hit');
+        $('feedback').textContent = 'Теперь вторая нота';
+        $('feedback').className = 'feedback ok';
+      }
+      return;
+    }
+    keyEls.get(midi).classList.add('bad');
+    finish(false);
+  }
+
+  // Кнопка с названием задаёт только высоту внутри октавы, поэтому сверяем по ступени звукоряда
+  function answerByName(idx) {
+    if (state.locked) return;
+    const alter = $('accidentals').checked ? state.sign : 0;
+    const pc = ((SEMIS[idx] + alter) % 12 + 12) % 12;
+    const ok = state.targets.some(m => ((m % 12) + 12) % 12 === pc);
+    const buttons = $('buttons').children;
+    const target = state.notes[0];
+    playMidi(ok ? target.midi : toMidi(target.step - mod7(target.step) + idx, alter));
+    buttons[idx].classList.add(ok ? 'ok' : 'bad');
+    if (!ok) buttons[mod7(target.step)].classList.add('ok');
+    finish(ok);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (state.answer !== 'names') return;
+    const k = e.key.toUpperCase();
+    if (k >= '1' && k <= '7') return answerByName(Number(k) - 1);
+    const i = LETTERS.indexOf(k);
+    if (i >= 0) answerByName(i);
+  });
+
+  function setMode(mode) {
+    state.mode = mode;
+    try { localStorage.setItem('noteTrainerMode', mode); } catch (e) {}
+    for (const b of $('clefMode').children) b.classList.toggle('active', b.dataset.mode === mode);
+    drawStaff(mode);
+    state.targets = [];
+    nextNote();
+    centerOn(homeKey(mode), false);
+  }
+
+  for (const b of $('clefMode').children) b.addEventListener('click', () => setMode(b.dataset.mode));
+  $('accidentals').addEventListener('change', () => {
+    try { localStorage.setItem('noteTrainerAcc', $('accidentals').checked ? '1' : '0'); } catch (e) {}
+    state.sign = 0;
+    buildButtons();
+    state.targets = []; nextNote();
+  });
+  $('ledger').addEventListener('change', () => drawNotes(state.notes));
+  $('nameMode').addEventListener('change', buildButtons);
+  $('answerMode').addEventListener('change', e => setAnswerMode(e.target.value));
+
+  drawKeyboard();
+  const relayout = () => { drawStaff(state.mode); drawNotes(state.notes); drawKeyboard(); centerOn(homeKey(state.mode), false); };
+  mqNarrow.addEventListener('change', relayout);
+  mqLandscape.addEventListener('change', relayout);
+  setAnswerMode(state.answer);
+  updateStats();
+  setMode(state.mode);
+})();
+</script>
+</body>
+</html>
